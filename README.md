@@ -41,16 +41,16 @@ python evileye.py get -p <PASSWORD> <127.0.0.1:80>
 On successful authentification this should return:
 ```json
 {  
-    'address': {'ip': '127.0.0.1', 'link': 'http://127.0.0.1:80/', 'port': '80'},  
-    'cameras': [  
-        {'id': '1', 'name': 'Camera 1', 'resolution': 'Proxy'},  
-        {'id': '2', 'name': 'Camera 2', 'resolution': 'Proxy'}  
+"address": {"ip": "127.0.0.1", "link": "http://127.0.0.1:80/", "port": "80"},  
+    "cameras": [  
+        {"id": "1", "name": "Camera 1", "resolution": "Proxy"},  
+        {"id": "2", "name": "Camera 2", "resolution": "Proxy"}  
     ],  
-    'credentials': {'password': '<PASSWORD>', 'username': 'admin'},  
-    'info': {'firmware': 'V3.4.4', 'model': 'DS-9632NI-XT', 'name': 'Recorder'},  
-    'users': [  
-        {'id': '1', 'level': 'Administrator', 'username': 'admin'},  
-        {'id': '2', 'level': 'Operator', 'username': 'security'},
+    "credentials": {"password": "<PASSWORD>", "username": "admin"},  
+    "info": {"firmware": "V3.4.4", "model": "DS-9632NI-XT", "name": "Recorder"},  
+    "users": [  
+        {"id": "1", "level": "Administrator", "username": "admin"},  
+        {"id": "2", "level": "Operator", "username": "security"}
     ],  
 }
 ```
